@@ -11,7 +11,7 @@ from synthetic_data import generate_company_data, pick_company_name, DEPT_GENERA
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="FraudLens — AI Risk Intelligence",
+    page_title="FraudSense — AI Risk Intelligence",
     page_icon="",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -390,7 +390,7 @@ def parse_analysis(text):
 with st.sidebar:
     st.markdown("""
     <div class="sb-logo">
-        <div class="sb-logo-text">Fraud<span>Lens</span></div>
+        <div class="sb-logo-text">Fraud<span>Sense</span></div>
         <div class="sb-logo-sub">AI Risk Intelligence Platform</div>
     </div>""", unsafe_allow_html=True)
 
@@ -417,12 +417,12 @@ with st.sidebar:
     run_btn = st.button("Run Assessment", width="stretch")
 
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown('<div style="font-family:var(--mono);font-size:0.62rem;color:#3a3830;padding:0 0 1rem;">FraudLens v2.0 — Demo Build<br>Powered by Claude AI (Anthropic)</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:var(--mono);font-size:0.62rem;color:#3a3830;padding:0 0 1rem;">FraudSense v2.0 — Demo Build<br>Powered by Claude AI (Anthropic)</div>', unsafe_allow_html=True)
 
 # ── Top bar ───────────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="topbar">
-    <div class="topbar-logo">Fraud<span>Lens</span></div>
+    <div class="topbar-logo">Fraud<span>Sense</span></div>
     <div class="topbar-tag">AI Fraud Risk Intelligence</div>
 </div>
 """, unsafe_allow_html=True)
@@ -480,7 +480,7 @@ if "results" not in st.session_state:
         st.markdown('<div class="section-label">Synthetic Data Mode</div>', unsafe_allow_html=True)
         st.markdown("""<div class="sc-card">
             <div class="sc-title">Pre-loaded Company Data</div>
-            <div class="sc-desc">Select any of 12 fictional companies — FraudLens generates a complete, realistic dataset across all 9 departments with embedded anomalies. Ideal for demos, sales pitches, and investor presentations. No setup required.</div>
+            <div class="sc-desc">Select any of 12 fictional companies — FraudSense generates a complete, realistic dataset across all 9 departments with embedded anomalies. Ideal for demos, sales pitches, and investor presentations. No setup required.</div>
         </div>""", unsafe_allow_html=True)
         for co in COMPANY_NAMES[:4]:
             st.markdown(f'<div style="font-family:var(--mono);font-size:0.75rem;color:var(--ink3);padding:4px 0;border-bottom:1px solid var(--border);">{co}</div>', unsafe_allow_html=True)
@@ -700,7 +700,7 @@ if st.session_state.get("results"):
         # Download
         st.markdown("<br>", unsafe_allow_html=True)
         report_lines = [
-            f"FRAUDLENS AI — FRAUD RISK ASSESSMENT",
+            f"FRAUDSense AI — FRAUD RISK ASSESSMENT",
             f"{'='*60}",
             f"Client:     {r['company']}",
             f"Department: {r['department']}",
@@ -726,7 +726,7 @@ if st.session_state.get("results"):
         col1, col2 = st.columns(2)
         with col1:
             st.download_button("Download Report (.txt)", data=report_text,
-                               file_name=f"fraudlens_{r['company'].replace(' ','_')}_{datetime.now().strftime('%Y%m%d')}.txt",
+                               file_name=f"fraudsense_{r['company'].replace(' ','_')}_{datetime.now().strftime('%Y%m%d')}.txt",
                                mime="text/plain", width="stretch")
         with col2:
             csv_buf = io.StringIO()
