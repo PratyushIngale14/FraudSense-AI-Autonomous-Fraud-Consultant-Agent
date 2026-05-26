@@ -2,6 +2,7 @@ import streamlit as st
 import anthropic
 import pandas as pd
 import json
+import re
 import time
 import io
 from datetime import datetime
@@ -278,7 +279,12 @@ Return ONLY valid JSON. No markdown, no preamble."""
         max_tokens=3500,
         messages=[{"role":"user","content":prompt}]
     )
-    return json.loads(resp.content[0].text.strip())
+    raw = resp.content[0].text.strip()
+    # Strip markdown fences if model wraps JSON in ```json ... ```
+    raw = re.sub(r"^```(?:json)?\s*", "", raw)
+    raw = re.sub(r"\s*```$", "", raw)
+    raw = raw.strip()
+    return json.loads(raw)
 
 def analyze_scenario(client, scenario, dept, company_name, company_size, industry, df_summary_text):
     prompt = f"""You are a senior fraud risk consultant preparing a client-facing analysis.
@@ -421,7 +427,7 @@ if data_mode == "Upload Real Data":
         <div class="upload-sub">Accepted formats: CSV, XLSX &nbsp;|&nbsp; Expected columns (flexible): {', '.join(expected_cols)}</div>
     </div>""", unsafe_allow_html=True)
 
-    uploaded_file = st.file_uploader("", type=["csv","xlsx"], label_visibility="collapsed")
+    uploaded_file = st.file_uploader("Upload department data file", type=["csv","xlsx"], label_visibility="collapsed")
     if uploaded_file:
         try:
             if uploaded_file.name.endswith(".csv"):
