@@ -1,5 +1,6 @@
 import streamlit as st
 import anthropic
+import httpx
 import pandas as pd
 import json
 import re
@@ -226,7 +227,13 @@ COMPANY_SIZES = ["Startup  (<50 employees)","SME  (50–500)","Mid-market  (500�
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def get_client():
     key = st.session_state.get("api_key", "") or st.secrets.get("ANTHROPIC_API_KEY", "")
-    return anthropic.Anthropic(api_key=key) if key else None
+    if not key:
+        return None
+    return anthropic.Anthropic(
+        api_key=key,
+        timeout=httpx.Timeout(120.0, connect=10.0),
+        max_retries=3,
+    )
 
 def pill(level):
     cls = {"Critical":"pill-critical","High":"pill-high","Medium":"pill-medium","Low":"pill-low"}.get(level,"pill-low")
@@ -258,7 +265,7 @@ Industry: {industry}
 Department under review: {dept}
 
 Dataset summary (for context):
-{df_summary_text}
+{df_summary_text[:1500]}
 
 Generate {n} realistic, specific fraud scenarios for this department. Reference actual patterns visible in the data summary where relevant.
 
@@ -275,8 +282,8 @@ Return a JSON array of exactly {n} objects, each with:
 Return ONLY valid JSON. No markdown, no preamble."""
 
     resp = client.messages.create(
-        model="claude-opus-4-5",
-        max_tokens=3500,
+        model="claude-sonnet-4-5",
+        max_tokens=3000,
         messages=[{"role":"user","content":prompt}]
     )
     raw = resp.content[0].text.strip()
@@ -324,7 +331,7 @@ One concrete action the company can take this week to reduce exposure. (1-2 sent
 No markdown. No emojis. Professional tone throughout."""
 
     resp = client.messages.create(
-        model="claude-opus-4-5",
+        model="claude-sonnet-4-5",
         max_tokens=1200,
         messages=[{"role":"user","content":prompt}]
     )
@@ -350,7 +357,7 @@ Write a 4-paragraph executive summary covering:
 Tone: authoritative, precise, board-appropriate. No bullet points in the summary itself. No emojis. No markdown."""
 
     resp = client.messages.create(
-        model="claude-opus-4-5",
+        model="claude-sonnet-4-5",
         max_tokens=900,
         messages=[{"role":"user","content":prompt}]
     )
