@@ -229,9 +229,14 @@ def get_client():
     key = st.session_state.get("api_key", "") or st.secrets.get("ANTHROPIC_API_KEY", "")
     if not key:
         return None
+    transport = httpx.HTTPTransport(retries=3)
+    http_client = httpx.Client(
+        transport=transport,
+        timeout=httpx.Timeout(120.0, connect=15.0, read=90.0, write=15.0),
+    )
     return anthropic.Anthropic(
         api_key=key,
-        timeout=httpx.Timeout(120.0, connect=10.0),
+        http_client=http_client,
         max_retries=3,
     )
 
@@ -496,8 +501,9 @@ if "results" not in st.session_state:
 
 # ── Run Analysis ──────────────────────────────────────────────────────────────
 if run_btn:
-    if not st.session_state.get("api_key"):
-        st.error("An Anthropic API key is required. Add it in the sidebar.")
+    _key_check = st.session_state.get("api_key", "") or st.secrets.get("ANTHROPIC_API_KEY", "")
+    if not _key_check:
+        st.error("An Anthropic API key is required. Add it in the sidebar or in Streamlit Cloud Secrets.")
         st.stop()
     if not company_choice:
         st.error("Please enter a company name.")
@@ -531,7 +537,9 @@ if run_btn:
         scenarios = generate_scenarios(client, selected_dept, company_choice, company_size, industry, summary_text, num_scenarios)
         progress.progress(35)
     except Exception as e:
-        st.error(f"Scenario generation failed: {e}")
+        st.error(f"Scenario generation failed: {type(e).__name__}: {e}")
+        import traceback
+        st.code(traceback.format_exc(), language="text")
         st.stop()
 
     # Analyze each
