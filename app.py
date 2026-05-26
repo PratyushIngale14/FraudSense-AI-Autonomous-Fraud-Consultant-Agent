@@ -224,7 +224,7 @@ COMPANY_SIZES = ["Startup  (<50 employees)","SME  (50–500)","Mid-market  (500�
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def get_client():
-    key = st.session_state.get("api_key","")
+    key = st.session_state.get("api_key", "") or st.secrets.get("ANTHROPIC_API_KEY", "")
     return anthropic.Anthropic(api_key=key) if key else None
 
 def pill(level):
@@ -381,7 +381,7 @@ with st.sidebar:
                   help="Obtain from console.anthropic.com")
 
     st.markdown('<div class="sb-section">Data Mode</div>', unsafe_allow_html=True)
-    data_mode = st.radio("", ["Synthetic Company Data", "Upload Real Data"], label_visibility="collapsed")
+    data_mode = st.radio("Select Data Mode", ["Synthetic Company Data", "Upload Real Data"], label_visibility="collapsed")
 
     st.markdown('<div class="sb-section">Assessment Parameters</div>', unsafe_allow_html=True)
 
