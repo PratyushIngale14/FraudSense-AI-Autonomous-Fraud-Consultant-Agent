@@ -402,7 +402,7 @@ with st.sidebar:
     num_scenarios = st.slider("Scenarios to Generate", 3, 8, 5)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    run_btn = st.button("Run Assessment", use_container_width=True)
+    run_btn = st.button("Run Assessment", width="stretch")
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown('<div style="font-family:var(--mono);font-size:0.62rem;color:#3a3830;padding:0 0 1rem;">FraudLens v2.0 — Demo Build<br>Powered by Claude AI (Anthropic)</div>', unsafe_allow_html=True)
@@ -436,7 +436,7 @@ if data_mode == "Upload Real Data":
                 uploaded_df = pd.read_excel(uploaded_file)
             st.success(f"File loaded — {len(uploaded_df)} records, {len(uploaded_df.columns)} columns.")
             with st.expander("Preview uploaded data"):
-                st.dataframe(uploaded_df.head(20), use_container_width=True)
+                st.dataframe(uploaded_df.head(20), width="stretch")
         except Exception as e:
             st.error(f"Could not read file: {e}")
 
@@ -712,7 +712,7 @@ if st.session_state.get("results"):
         with col1:
             st.download_button("Download Report (.txt)", data=report_text,
                                file_name=f"fraudlens_{r['company'].replace(' ','_')}_{datetime.now().strftime('%Y%m%d')}.txt",
-                               mime="text/plain", use_container_width=True)
+                               mime="text/plain", width="stretch")
         with col2:
             csv_buf = io.StringIO()
             risk_df = pd.DataFrame([{
@@ -723,7 +723,7 @@ if st.session_state.get("results"):
             risk_df.to_csv(csv_buf, index=False)
             st.download_button("Download Risk Register (.csv)", data=csv_buf.getvalue(),
                                file_name=f"risk_register_{datetime.now().strftime('%Y%m%d')}.csv",
-                               mime="text/csv", use_container_width=True)
+                               mime="text/csv", width="stretch")
 
     # ── Tab 4: Source Data ────────────────────────────────────────────────────
     with tab4:
@@ -746,10 +746,10 @@ if st.session_state.get("results"):
         if flag_cols and r["data_mode"]=="Synthetic Company Data":
             st.markdown('<div style="font-family:var(--mono);font-size:0.7rem;color:var(--accent);letter-spacing:1px;text-transform:uppercase;margin-bottom:0.5rem;">Anomalous Records</div>', unsafe_allow_html=True)
             mask = df[flag_cols].eq("Yes").any(axis=1)
-            st.dataframe(df[mask], use_container_width=True, height=240)
+            st.dataframe(df[mask], width="stretch", height=240)
             st.markdown('<div style="font-family:var(--mono);font-size:0.7rem;color:var(--ink3);letter-spacing:1px;text-transform:uppercase;margin:1rem 0 0.5rem;">Full Dataset</div>', unsafe_allow_html=True)
 
-        st.dataframe(df, use_container_width=True, height=360)
+        st.dataframe(df, width="stretch", height=360)
 
         # Download dataset
         csv_out = df.to_csv(index=False)
