@@ -8,6 +8,7 @@ import time
 import io
 from datetime import datetime
 from synthetic_data import generate_company_data, pick_company_name, DEPT_GENERATORS, COMPANY_NAMES
+from warehouse.ui import render_warehouse_module
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -394,27 +395,39 @@ with st.sidebar:
         <div class="sb-logo-sub">AI Risk Intelligence Platform</div>
     </div>""", unsafe_allow_html=True)
 
+    st.markdown('<div class="sb-section">Module</div>', unsafe_allow_html=True)
+    app_module = st.radio("Select Module",
+                          ["Fraud Risk Assessment", "Warehouse Assurance"],
+                          label_visibility="collapsed")
+
     st.markdown('<div class="sb-section">API Access</div>', unsafe_allow_html=True)
     st.text_input("Anthropic API Key", type="password", placeholder="sk-ant-...", key="api_key",
                   help="Obtain from console.anthropic.com")
 
-    st.markdown('<div class="sb-section">Data Mode</div>', unsafe_allow_html=True)
-    data_mode = st.radio("Select Data Mode", ["Synthetic Company Data", "Upload Real Data"], label_visibility="collapsed")
+    if app_module == "Fraud Risk Assessment":
+        st.markdown('<div class="sb-section">Data Mode</div>', unsafe_allow_html=True)
+        data_mode = st.radio("Select Data Mode", ["Synthetic Company Data", "Upload Real Data"], label_visibility="collapsed")
 
-    st.markdown('<div class="sb-section">Assessment Parameters</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sb-section">Assessment Parameters</div>', unsafe_allow_html=True)
 
-    if data_mode == "Synthetic Company Data":
-        company_choice = st.selectbox("Company Profile", COMPANY_NAMES)
+        if data_mode == "Synthetic Company Data":
+            company_choice = st.selectbox("Company Profile", COMPANY_NAMES)
+        else:
+            company_choice = st.text_input("Company Name", placeholder="Your company name")
+
+        selected_dept = st.selectbox("Department", DEPT_LIST)
+        company_size  = st.selectbox("Company Size", COMPANY_SIZES, index=1)
+        industry      = st.selectbox("Industry", INDUSTRIES)
+        num_scenarios = st.slider("Scenarios to Generate", 3, 8, 5)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        run_btn = st.button("Run Assessment", width="stretch")
     else:
-        company_choice = st.text_input("Company Name", placeholder="Your company name")
-
-    selected_dept = st.selectbox("Department", DEPT_LIST)
-    company_size  = st.selectbox("Company Size", COMPANY_SIZES, index=1)
-    industry      = st.selectbox("Industry", INDUSTRIES)
-    num_scenarios = st.slider("Scenarios to Generate", 3, 8, 5)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    run_btn = st.button("Run Assessment", width="stretch")
+        st.markdown('<div class="sb-section">Warehouse Assurance</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:0.78rem;color:#9a9890;padding:0.2rem 0 0.6rem;">'
+                    'Reads a warehouse schema and reports which fraud scenarios its real data can '
+                    'detect. Controls are in the main panel.</div>', unsafe_allow_html=True)
+        run_btn = False
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown('<div style="font-family:var(--mono);font-size:0.62rem;color:#3a3830;padding:0 0 1rem;">FraudSense v2.0 — Demo Build<br>Powered by Claude AI (Anthropic)</div>', unsafe_allow_html=True)
@@ -426,6 +439,13 @@ st.markdown("""
     <div class="topbar-tag">AI Fraud Risk Intelligence</div>
 </div>
 """, unsafe_allow_html=True)
+
+# ── Warehouse Assurance module ────────────────────────────────────────────────
+# Renders the entire module then halts, leaving the existing assessment flow
+# below untouched and unreachable in this mode.
+if app_module == "Warehouse Assurance":
+    render_warehouse_module(get_client, pill)
+    st.stop()
 
 # ── Data upload section (only in upload mode) ─────────────────────────────────
 uploaded_df = None
