@@ -19,6 +19,10 @@ from .evaluation import full_evaluation
 from .analysis import rank_gaps, generate_remediation, build_report_text, _fallback_reco
 from .review import apply_review, review_summary, open_gaps_after_triage
 from .ontology import CANONICAL_ENTITIES, all_canonical_fields
+from .rows import build_warehouse_rows, planted_summary
+from .detect import run_detections, detection_summary, materialize_canonical
+from .investigate import answer_question, NO_ANSWER
+from .patterns import pattern_by_id
 
 _CSS = """
 <style>
@@ -69,6 +73,14 @@ def _chip(status: str) -> str:
 def _ss():
     st.session_state.setdefault("wh_discovery", {})     # wid -> raw AI mapping
     st.session_state.setdefault("wh_remediation", {})   # wid -> {pattern_id: text}
+    st.session_state.setdefault("wh_rows", {})          # wid -> {table: DataFrame}
+    st.session_state.setdefault("wh_chat", {})          # chat key -> [{q, a}]
+
+
+def _rows_for(wid: str) -> dict:
+    if wid not in st.session_state.wh_rows:
+        st.session_state.wh_rows[wid] = build_warehouse_rows(wid)
+    return st.session_state.wh_rows[wid]
 
 
 def _build_review(wid: str, ai_map: dict) -> dict:
@@ -298,12 +310,107 @@ def _render_remediation(wid: str, wh: dict, gaps: list):
                     f'<br><strong>Remediation:</strong> {reco}</div></div>', unsafe_allow_html=True)
 
 
-def _render_warehouse_detail(wid: str):
+def _render_investigator(wid: str, pid: str, sample_df, canon: dict, get_client):
+    pattern = pattern_by_id(pid)
+    st.markdown('<div style="font-family:var(--mono);font-size:.65rem;color:var(--accent);'
+                'letter-spacing:1px;text-transform:uppercase;margin:.6rem 0 .3rem;">'
+                'Investigate a flagged record</div>', unsafe_allow_html=True)
+    labels = []
+    for i, row in sample_df.iterrows():
+        key = row.get("identity_id") or row.get("vendor_id") or row.get("change_id") or i
+        labels.append(f"Row {i} · {key}")
+    pick = st.selectbox("Flagged record", labels, key=f"inv_pick_{wid}_{pid}",
+                        label_visibility="collapsed")
+    idx = labels.index(pick)
+    signal_row = sample_df.iloc[idx].to_dict()
+
+    chat_key = f"{wid}_{pid}_{idx}"
+    history = st.session_state.wh_chat.setdefault(chat_key, [])
+
+    st.caption(f"Ask about this {pattern['name']} signal. Answers are grounded only in this "
+               f"record's actual related data — it will say \"{NO_ANSWER}\" rather than guess.")
+    for turn in history:
+        st.markdown(f'<div class="an-block"><div class="an-label">You asked</div>'
+                    f'<div class="an-content">{turn["q"]}</div></div>', unsafe_allow_html=True)
+        is_idk = turn["a"].strip().startswith(NO_ANSWER[:20])
+        cls = "an-block" + (" " if is_idk else " an-quickwin")
+        st.markdown(f'<div class="{cls}"><div class="an-label">Investigator</div>'
+                    f'<div class="an-content">{turn["a"].replace(chr(10),"<br>")}</div></div>',
+                    unsafe_allow_html=True)
+
+    q = st.text_input("Question", key=f"inv_q_{chat_key}",
+                      placeholder="e.g. Was this person terminated, and when? Who approved this?")
+    c1, c2 = st.columns([1, 5])
+    with c1:
+        ask = st.button("Ask", key=f"inv_ask_{chat_key}")
+    with c2:
+        if history and st.button("Clear", key=f"inv_clear_{chat_key}"):
+            st.session_state.wh_chat[chat_key] = []
+            st.rerun()
+    if ask and q.strip():
+        with st.spinner("Reading this signal's evidence…"):
+            ans = answer_question(get_client(), pattern, signal_row, canon, q.strip(), history)
+        history.append({"q": q.strip(), "a": ans})
+        st.rerun()
+
+
+def _render_live_detection(wid: str, eff_map: dict, results: list, get_client):
+    raw = _rows_for(wid)
+    det = run_detections(raw, eff_map)
+    canon = materialize_canonical(raw, eff_map)
+    s = detection_summary(det)
+
+    mat = maturity_score(results)
+    st.markdown(f'<div class="exec-block" style="padding:1.4rem 1.6rem;">'
+                f'<div class="exec-heading">Live Detection</div>'
+                f'<div class="exec-text">Of the <strong>{mat["n_detectable"]}</strong> patterns your '
+                f'data can detect, we ran the actual detection logic on synthetic rows and found '
+                f'<strong>{s["total_anomalies"]}</strong> anomalies across '
+                f'<strong>{s["n_with_findings"]}</strong> patterns. '
+                f'{s["n_skipped_not_detectable"]} pattern(s) skipped — the data cannot support them.'
+                f'</div></div>', unsafe_allow_html=True)
+    st.caption("Detection is deterministic pandas run through the AI mapping — the same code runs on "
+               "both warehouses. Planted counts are approximate ground truth; real rules can also catch "
+               "emergent cases.")
+
+    cols = st.columns(4)
+    for col, (label, val) in zip(cols, [("Detectors run", s["n_ran"]),
+                                        ("With findings", s["n_with_findings"]),
+                                        ("Total anomalies", s["total_anomalies"]),
+                                        ("Skipped (no data)", s["n_skipped_not_detectable"])]):
+        col.markdown(f'<div class="stat-cell" style="border:1px solid var(--border);border-radius:6px;">'
+                     f'<div class="stat-num" style="font-size:1.8rem;">{val}</div>'
+                     f'<div class="stat-lbl">{label}</div></div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="section-label" style="margin-top:1.2rem;">Detections</div>',
+                unsafe_allow_html=True)
+    for r in det:
+        if not r["ran"]:
+            st.markdown(f'<div class="sc-card" style="opacity:.7;">'
+                        f'<div style="display:flex;justify-content:space-between;align-items:center;">'
+                        f'<div class="sc-title" style="margin:0;">{r["name"]}</div>{_chip(r["status"])}</div>'
+                        f'<div class="sc-flag">{r["reason"]}</div></div>', unsafe_allow_html=True)
+            continue
+        found_color = "#c8390a" if r["count"] > 0 else "#1a6b3c"
+        with st.expander(f"{r['name']}  —  {r['count']} found", expanded=False):
+            st.markdown(f'<div class="sc-meta"><span>{r["acfe_category"]}</span>'
+                        f'<span>risk weight {r["risk_weight"]}</span>'
+                        f'<span style="color:{found_color};">anomalies: {r["count"]}</span></div>'
+                        f'<div class="sc-flag" style="margin-top:.4rem;">logic: {r["detection_logic"]}</div>',
+                        unsafe_allow_html=True)
+            if r["count"] == 0:
+                st.success("Detector ran cleanly — no anomalies of this type in the data.")
+                continue
+            st.dataframe(r["sample"], width="stretch", height=240)
+            _render_investigator(wid, r["pattern_id"], r["sample"], canon, get_client)
+
+
+def _render_warehouse_detail(wid: str, get_client):
     wh = WAREHOUSES[wid]
     ai_map = st.session_state.wh_discovery[wid]
 
     tabs = st.tabs(["Raw Schema", "AI Mapping", "Semantic Layer", "Human Review",
-                    "Maturity & Gaps", "Evaluation", "Remediation"])
+                    "Maturity & Gaps", "Live Detection", "Evaluation", "Remediation"])
 
     # Human review widgets must be created so their state is readable; we read it
     # in _build_review. Build effective mapping from current review state.
@@ -324,8 +431,10 @@ def _render_warehouse_detail(wid: str):
     with tabs[4]:
         _render_maturity_and_gaps(wid, wh, results, gaps)
     with tabs[5]:
-        _render_evaluation(wid, eff_map, wh)
+        _render_live_detection(wid, eff_map, results, get_client)
     with tabs[6]:
+        _render_evaluation(wid, eff_map, wh)
+    with tabs[7]:
         _render_remediation(wid, wh, gaps)
         report = build_report_text(wh, maturity_score(results), gaps, full_evaluation(eff_map, wh["ground_truth"]))
         st.download_button("Download Warehouse Assurance Report (.txt)", data=report,
@@ -406,9 +515,9 @@ def render_warehouse_module(get_client, pill):
         st.markdown("---")
 
     if len(ready) == 1:
-        _render_warehouse_detail(ready[0])
+        _render_warehouse_detail(ready[0], get_client)
     else:
         sub = st.tabs([f"Warehouse {w} · {WAREHOUSES[w]['name']}" for w in ready])
         for t, w in zip(sub, ready):
             with t:
-                _render_warehouse_detail(w)
+                _render_warehouse_detail(w, get_client)
