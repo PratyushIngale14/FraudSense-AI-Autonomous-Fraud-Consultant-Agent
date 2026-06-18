@@ -355,10 +355,14 @@ def _render_investigator(wid: str, pid: str, sample_df, canon: dict, get_client)
 
 
 def _render_live_detection(wid: str, eff_map: dict, results: list, get_client):
-    raw = _rows_for(wid)
-    det = run_detections(raw, eff_map)
-    canon = materialize_canonical(raw, eff_map)
-    s = detection_summary(det)
+    try:
+        raw = _rows_for(wid)
+        det = run_detections(raw, eff_map)
+        canon = materialize_canonical(raw, eff_map)
+        s = detection_summary(det)
+    except Exception as exc:
+        st.error(f"Detection engine error: {type(exc).__name__}: {exc}")
+        return
 
     mat = maturity_score(results)
     st.markdown(f'<div class="exec-block" style="padding:1.4rem 1.6rem;">'
@@ -369,9 +373,8 @@ def _render_live_detection(wid: str, eff_map: dict, results: list, get_client):
                 f'<strong>{s["n_with_findings"]}</strong> patterns. '
                 f'{s["n_skipped_not_detectable"]} pattern(s) skipped — the data cannot support them.'
                 f'</div></div>', unsafe_allow_html=True)
-    st.caption("Detection is deterministic pandas run through the AI mapping — the same code runs on "
-               "both warehouses. Planted counts are approximate ground truth; real rules can also catch "
-               "emergent cases.")
+    st.caption("Detection is deterministic pandas — same code runs on both warehouses. "
+               "Planted counts are approximate ground truth; real detectors can surface emergent cases too.")
 
     cols = st.columns(4)
     for col, (label, val) in zip(cols, [("Detectors run", s["n_ran"]),
@@ -401,7 +404,7 @@ def _render_live_detection(wid: str, eff_map: dict, results: list, get_client):
             if r["count"] == 0:
                 st.success("Detector ran cleanly — no anomalies of this type in the data.")
                 continue
-            st.dataframe(r["sample"], width="stretch", height=240)
+            st.dataframe(r["sample"], use_container_width=True, height=240)
             _render_investigator(wid, r["pattern_id"], r["sample"], canon, get_client)
 
 
